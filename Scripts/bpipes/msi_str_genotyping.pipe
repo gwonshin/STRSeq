@@ -1,0 +1,285 @@
+RESOURCE_DIR='/mnt/cluster2-analysis/Data/Reference_and_Resources'
+STRSEQ_DIR='/mnt/ix1/Projects/M012_141028_STR/Manuscript'
+TMP_DIR = '/mnt/ix2/TEMP'
+JAVA_EXE = '/usr/bin/java'
+
+GENOME_REF_DIR="${RESOURCE_DIR}/GenomeRef/Homo_sapiens"
+
+BEDTOOLS_DIR="${RESOURCE_DIR}/tools/bedtools2-2.25.0/bin"
+VCFTOOLS_DIR="${RESOURCE_DIR}/tools/vcftools_0.1.11/bin"
+VCFLIB_DIR="${RESOURCE_DIR}/tools/vcflib/bin"
+BAMUTIL_DIR="${RESOURCE_DIR}/tools/bamUtil_1.0.13/bamUtil/bin"
+PICARD_DIR="${RESOURCE_DIR}/tools/picard-tools-1.97"
+FREEBAYES_EXE="${RESOURCE_DIR}/tools/Freebayes/freebayes"
+SAMTOOLS_EXE="${RESOURCE_DIR}/tools/samtools-0.1.18/samtools"
+
+STR_INFO_DIR="${STRSEQ_DIR}/00_Resources"
+STR_SCRIPT_DIR="${STRSEQ_DIR}/02_Scripts/python/msi-str-v7"
+  
+//Set branch variables for probe and STR info
+str_set_variables = {
+  var pool : 'OS0037'
+  def flank_size = System.getenv('FLANK_SIZE')
+  println "Flank size (from shell env variable) is $flank_size"
+
+  branch.str_info   = "$STR_INFO_DIR/${pool}.str_info.txt"
+  branch.probe_info = "$STR_INFO_DIR/${pool}.str_probes.txt"
+  branch.flank5pr_bed = "$STR_INFO_DIR/${pool}.5prflank.st.bed"
+  branch.flank3pr_bed = "$STR_INFO_DIR/${pool}.3prflank.st.bed"
+  }
+
+//Next(elsewhere) R1: sam to sorted bam (samtools); call variants (freebayes)
+
+//R1/R2: Set branch variables based on R1/R2 input file name
+str_set_input_basename = {
+  def input_basename = new File(input).name.split("\\.")[0] 
+  if ( input_basename.contains('_R1') )
+    { branch.r1base = input_basename; branch.r2base = input_basename.replace('_R1', '_R2') }
+  else if ( input_basename.contains('_R2') )
+    { branch.r2base = input_basename; branch.r1base = input_basename.replace('_R2', '_R1') }
+  println "Input to str_set_input_basename is: $input"
+  forward input
+  }
+
+//R1: Call SNVs in R1 flanking regions
+freebayes_snps = {
+  var pval : '0.05'
+  var exclusions : 'none'  // snps, indels, or none
+  var min_coverage : 0
+  var genome_build : '1KGenomes/build37'
+  var genome_fa    : 'human_g1k_v37.fasta'
+  def ref_fa = "${GENOME_REF_DIR}/${genome_build}/Sequence/BWAIndex/$genome_fa"
+  def xflag = (exclusions == 'none') ? '' : '--no-' + exclusions
+ 
+  from("*.bam") transform("vcf") {
+    exec """
+	  ${FREEBAYES_EXE}
+      --pvar $pval $xflag 
+	  --standard-filters
+	  --min-mapping-quality 30
+	  --min-base-quality 20
+	  --min-coverage $min_coverage
+      --bam $input.bam
+	  --vcf $output
+	  --fasta-reference $ref_fa
+    """
+    }
+  }
+
+//R1: Extract variants within STR flanking regions
+//    Remove any mnp or indel variants called by FreeBayes, and reformat output -> selected columns
+str_flank_snvs = {
+  var pool : 'OS0037'
+  def r1_fn     = new File(input).name
+  //branch.r1base = r1_fn.lastIndexOf('.').with {it != -1 ? r1_fn[0..<it] : r1_fn}
+  //branch.r1base = r1_fn.split("\\.")[0]
+  from('*.vcf') produce(branch.r1base + '.flank_alleles.txt') {
+    exec """
+	  ${BEDTOOLS_DIR}/intersectBed -a $input.vcf -b ${branch.flank5pr_bed} -b ${branch.flank3pr_bed} 
+                      -names '5pr' '3pr' -wa -wb >${branch.r1base}.flank_snv.txt;
+	  python ${STR_SCRIPT_DIR}/str_flank_alleles.py ${branch.r1base}.flank_snv.txt
+	"""
+	}
+  }
+
+//R1: Genotyping using length-based method
+str_ln_genotype = {
+  def fn_dtl_out = branch.r1base + '.STRln_detail.txt'
+  def fn_summ_out = branch.r1base + '.STRln_summary.txt'
+  def fn_probes_out = branch.r1base + '.STRln_probects.txt'
+  def fn_final_out  = branch.r1base + '.STRln_final.txt'
+  def tmp_qnames = branch.r1base + '.qnames.tmp'
+  
+  from('*.flank_alleles.txt', '*R1*.st.bam') produce(fn_dtl_out, fn_probes_out, fn_final_out) {
+    exec """
+	  python $STR_SCRIPT_DIR/str_lengths_R1ref.py ${branch.probe_info} ${branch.str_info} $input.txt $input.bam;
+	  python $STR_SCRIPT_DIR/str_ctlen_genotype.py $fn_summ_out $fn_probes_out ${branch.str_info};
+	  cut -f5 $fn_dtl_out | sort > $tmp_qnames;
+    """
+	}
+  }
+  
+//R2-SNV Phasing: Using qname, extract R2 mates for R1s which contain STR reads
+str_qname_filter = {
+  def tmp_qnames = branch.r1base + '.qnames.tmp'
+  
+  from('*R2*.bam') filter('nfilter') {
+    exec """
+	  java -jar ${PICARD_DIR}/FilterSamReads.jar
+	    INPUT=$input.bam 
+	    TMP_DIR=$TMP_DIR 
+	    VALIDATION_STRINGENCY=LENIENT 
+	    FILTER=includeReadList READ_LIST_FILE=$tmp_qnames 
+	    OUTPUT=$output.bam 
+	    SORT_ORDER=coordinate 
+	    CREATE_INDEX=true 
+	    WRITE_READS_FILES=false
+	"""
+	}
+  }
+
+//R2-SNV Phasing: Mask synthetic DNA positions (40b R2 probes), and last R2 base
+//  Last base is prone to false positive variants
+str_probe_trim = {  
+  from('*R2*.bam') filter('trim') {
+    exec """
+	  ${BAMUTIL_DIR}/bam trimBam $input $output --left 40 --right 1;
+	"""
+	}
+  }
+
+//R2-SNV Phasing: Sort bam file
+bamsort = {
+  from("*.bam") filter("st") {
+    exec "${SAMTOOLS_EXE} sort $input $output.prefix"
+    }
+  }
+
+//R2-SNV Phasing: Index bam file
+bamindex = {
+  from("*.bam") transform("bam.bai") {
+    exec "${SAMTOOLS_EXE} index $input.bam"
+    forward input.bam
+    }
+  }
+
+//R2-SNV Phasing: Call SNVs in R2  
+freebayes_str_snps = {
+  var pval : '0.05'
+  var min_coverage : 3
+  var genome_build : '1KGenomes/build37'
+  var genome_fa    : 'human_g1k_v37.fasta'
+  def ref_fa = "${GENOME_REF_DIR}/${genome_build}/Sequence/BWAIndex/$genome_fa"
+  
+  from("*.bam") transform("vcf") {
+    exec """
+	  ${FREEBAYES_EXE}
+      --pvar $pval 
+	  --no-mnps --no-complex
+      --min-mapping-quality 25
+      --min-base-quality 15 
+	  --min-coverage $min_coverage
+	  --min-supporting-mapping-qsum 90
+	  --min-supporting-allele-qsum 60
+      --bam $input.bam
+	  --vcf $output
+	  --fasta-reference $ref_fa
+    """
+    }
+  }
+
+//R2-SNV Phasing: Extract R2 SNV positions which are in regions defined by bed file (around probe, but not in STR repeat)
+//  Additionally apply quality filter using vcffilter
+str_snv_filter = {
+  var pool : 'OS0037'
+  var rlen : '150'
+  def pool_bed = pool + '_genomic_' + rlen + 'b.noSTR_plus5b.bed'
+  
+  from('*.vcf') filter('filter') {
+    exec """
+	  ${VCFTOOLS_DIR}/vcftools --vcf $input.vcf
+        --bed ${STR_INFO_DIR}/$pool_bed
+        --thin 6 
+        --remove-filtered-all 
+        --remove-indels 
+        --recode --recode-INFO-all 
+        --out ${output.prefix};
+	
+	  ${VCFLIB_DIR}/vcffilter 
+        -f "QUAL > 1 & QUAL / AO > 8" 
+        ${output.prefix}.recode.vcf > $output;
+	  rm ${output.prefix}.recode.vcf
+	"""
+    }
+  }
+
+//R2-SNV Phasing: Extract pertinent vcf columns and reformat to text
+str_snv_pos = {
+  from('*.vcf') transform('snv_coords.txt') {
+    exec """
+	  ${VCFTOOLS_DIR}/vcftools --vcf $input.vcf 
+		--get-INFO TYPE
+		--get-INFO AF
+		--out $output.prefix;
+	  mv ${output.prefix}.INFO $output;
+	"""
+    }
+  }
+  
+//R2-SNV Phasing: Extract R2 bam reads which cover an SNV position
+str_r2_snvs = {
+  var snvs : 'alt'
+  from('*R2*.bam', '*.snv_coords.txt') produce(branch.r2base + '.SNV_detail.txt') {
+    exec """
+	  python $STR_SCRIPT_DIR/pstr_extract_R2snv.py $input.bam $input.txt $snvs
+	"""
+	}
+  }
+  
+//R2-SNV Phasing: Merge R1 STRs with R2 SNVs
+str_snv_merge = {
+  from(branch.r1base + '.STRln_detail.txt', '*.SNV_detail.txt') produce(branch.r1base + '.STR_SNV.summary.txt') {
+    exec """
+	  python $STR_SCRIPT_DIR/pstr_merge_str_snv.py $input1 $input2
+    """
+	}
+  }
+  
+//R2-SNV Phasing: Genotyping
+str_snv_genotype = {
+  def fn_probe_cts = branch.r1base + '.STRln_probects.txt'
+  from('*.STR_SNV.summary.txt') produce(branch.r1base + '.STR_SNV.final.txt') {
+    exec """
+	  python $STR_SCRIPT_DIR/pstr_genotyping.py $input ${branch.str_info} $fn_probe_cts 
+    """
+	}
+  }
+
+//Haplotype counts
+haplotype_cts = {
+  var snvs: 'alt'
+  var alleles: (snvs == 'all') ? 'all' : 'major'
+  from('*.STR_SNV.final.txt') produce(branch.r1base + '.haplotype_cts_' + alleles + '.txt') {
+    exec """
+	  python $STR_SCRIPT_DIR/pstr_haplotype_cts.py $input $alleles
+	"""
+	}
+  }
+
+strR1_cleanup = {
+  //preserve("*.vcf", "*_R1.flank_alleles.txt")
+  //preserve("*_detail.txt", "*summary.txt", "*final.txt")
+  //cleanup('*STRct_probects.txt')  //Cannot remove this file here since bpipe expects it to be output to next stage
+  exec """
+    rm -f ${branch.r1base + '.flank_snv.txt'}
+  """
+  }
+  
+strsnv_cleanup = {
+  //preserve("*.vcf", "*_R2.*snv_coords.txt")
+  //preserve("*_detail.txt", "*summary.txt", "*final.txt")
+  var clean : 'Y'
+  if(clean == 'Y') {
+    cleanup('*.nfilter*.bam', '*.SNV_detail.txt')
+    exec """
+      rm -f ${branch.r2base + '*nfilter.trim*.bam'};
+	  rm -f ${branch.r2base + '*nfilter*.bai'};
+	  rm -f ${branch.r1base + '*STRct_probects.txt'};
+	  rm -f ${branch.r1base + '*.tmp'}; 
+    """
+    }
+  }
+
+bam_srtidx = segment { bamsort + bamindex }
+
+run {  str_set_variables + 
+                        
+		"%_R1*.st.bam" * [ str_set_input_basename +  
+                      [ "%_R1*.st.bam" * [ freebayes_snps.using(exclusions: 'indels') + str_flank_snvs + str_ln_genotype ] ] +
+                                             strR1_cleanup ] +
+
+                        "%_R2*.st.bam" * [ str_set_input_basename + str_qname_filter + str_probe_trim + bam_srtidx +
+                                         freebayes_str_snps + str_snv_filter + str_snv_pos + str_r2_snvs + 
+                                           str_snv_merge + str_snv_genotype + haplotype_cts + strsnv_cleanup ]
+
+          }
