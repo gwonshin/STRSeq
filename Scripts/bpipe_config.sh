@@ -2,7 +2,7 @@
 # Script sets general parameters needed for bpipe runs 
 # Example: bipe_params.sh -t 36 -m 48 -l bwa_align  (runs with threads=36, mem=48GB, log file prefix='bwa_align')
 
-#RESOURCE_DIR='/mnt/cluster2-analysis/Data/Reference_and_Resources'
+TOOLS_DIR='/path/to/tools(bpipe)'
 
 # Turn on extended globbing (allowing regex in file matching patterns)
 shopt -s extglob
@@ -46,7 +46,7 @@ if [ $memory -lt 4 ] || [ $memory -gt 156 ]; then
   echo "Error: Memory must be between 4 and 156"; exit 3
 fi
 
-BPIPE_EXE=${RESOURCE_DIR}/tools/bpipe-${bpipe_ver}/bin/bpipe
+BPIPE_EXE=${TOOLS_DIR}/bpipe-${bpipe_ver}/bin/bpipe
 if [ ! -f $BPIPE_EXE ]; then
   echo "Error: bpipe executable not found at: ${BPIPE_EXE}"; exit 4
 fi

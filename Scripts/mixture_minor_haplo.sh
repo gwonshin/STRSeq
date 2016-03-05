@@ -9,7 +9,8 @@
 #  Therefore you will want to run in a different directory from the one that initial genotyping was run
 #  in, and just symlink to the required input files.
 #
-STR_SCRIPT_DIR="/mnt/ix1/Projects/M012_141028_STR/Manuscript/02_Scripts/python/msi-str-v7"
+STRSEQ_DIR='/path/to/strseq'
+STR_SCRIPT_DIR="${STRSEQ_DIR}/Scripts/python"
 #
 fprefix_minor='L002060_S1fixed_L001'
 fprefix_mixture='L002061_S4fixed_L001'

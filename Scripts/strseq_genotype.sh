@@ -1,10 +1,13 @@
 #!/bin/bash
 #
-RESOURCE_DIR='/mnt/cluster2-analysis/Data/Reference_and_Resources'
-STRSEQ_DIR='/mnt/ix1/Projects/M012_141028_STR/Manuscript'
-TMP_DIR='/mnt/ix2/TEMP'
+RESOURCE_DIR='/path/to/resources'
+STRSEQ_DIR='/path/to/strseq'
+TMP_DIR='/path/to/tempdir'
 JAVA_EXE='/usr/bin/java'
 
+# This path assumes igenomes directory structure, and 1KGenomes fasta file (human_g1k_v37.fasta)
+# If your path is different, modify this GENOME_REF_DIR and the --fasta-reference in the freebayes
+#   steps below, as needed
 GENOME_REF_DIR="${RESOURCE_DIR}/GenomeRef/Homo_sapiens"
 
 BEDTOOLS_DIR="${RESOURCE_DIR}/tools/bedtools2-2.25.0/bin"
@@ -15,8 +18,8 @@ PICARD_DIR="${RESOURCE_DIR}/tools/picard-tools-1.97"
 FREEBAYES_EXE="${RESOURCE_DIR}/tools/Freebayes/freebayes"
 SAMTOOLS_EXE="${RESOURCE_DIR}/tools/samtools-0.1.18/samtools"
 
-STR_INFO_DIR="${STRSEQ_DIR}/00_Resources"
-STR_SCRIPT_DIR="${STRSEQ_DIR}/02_Scripts/python/msi-str-v7"
+STR_INFO_DIR="${STRSEQ_DIR}/Resources"
+STR_SCRIPT_DIR="${STRSEQ_DIR}/Scripts/python"
 
 # Function to print help
 print_usage()
