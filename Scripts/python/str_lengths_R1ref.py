@@ -68,6 +68,8 @@ ALLELE2_MIN_PCT = msi.ALLELE2_MIN_PCT
 # Add alternate flanking sequences if variants in flank positions             #
 #-----------------------------------------------------------------------------#
 str_info   = msi.dict_from_csv(str_csv, 'str_info')
+#print sorted(str_info)
+
 probe_info = msi.dict_from_csv(probe_csv, 'probe_info')
 
 # Modify str_info dictionary to put flanking sequences into array to allow appending later

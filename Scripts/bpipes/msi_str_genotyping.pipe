@@ -280,8 +280,7 @@ run {  str_set_variables +
                                              strR1_cleanup ] +
 
                     "%_R2*.st.bam" * [ str_set_input_basename + str_probe_trim + bam_srtidx + freebayes_str_snps + 
-					                    str_snv_filter + str_snv_pos + str_qname_filter + str_r2_snvs + 
+                                         str_snv_filter + str_snv_pos + str_qname_filter + str_r2_snvs + 
                                            str_snv_merge + str_snv_genotype + haplotype_cts + strsnv_cleanup ]
 
           }
-

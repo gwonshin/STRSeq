@@ -1,8 +1,11 @@
 #!/bin/bash
 # Script sets general parameters needed for bpipe runs 
-# Example: bipe_params.sh -t 36 -m 48 -l bwa_align  (runs with threads=36, mem=48GB, log file prefix='bwa_align')
+# Example: bipe_config.sh -t 36 -m 48 -l strseq  (runs with threads=36, mem=48GB, log file prefix='strseq')
 
-TOOLS_DIR='/path/to/tools(bpipe)'
+TOOLS_DIR=/path/to/tools(bpipe)
+bpipe_ver='0.9.8.7'
+STRSEQ_DIR='/path/to/strseq'
+PIPES_DIR=${STRSEQ_DIR}/Scripts/bpipes
 
 # Turn on extended globbing (allowing regex in file matching patterns)
 shopt -s extglob
@@ -19,8 +22,7 @@ print_usage()
 	   return
 }
 
-# Set default parameters 
-bpipe_ver='0.9.8.7'  
+# Set default parameters   
 threads=48
 memory=36
 logfile=BpipeLog

@@ -1,11 +1,12 @@
 #!/bin/bash
 #
+TOOLS_DIR='/path/to/tools(bpipe)'
 bpipe_ver='0.9.8.7'
-RESOURCE_DIR='/mnt/cluster2-analysis/Data/Reference_and_Resources'
-STRSEQ_DIR='/mnt/ix1/Projects/M012_141028_STR/Manuscript'
+BPIPE_EXE="${TOOLS_DIR}/bpipe-${bpipe_ver}/bin/bpipe"
 
-BPIPE_EXE=${RESOURCE_DIR}/tools/bpipe-${bpipe_ver}/bin/bpipe
-SCRIPT_DIR="${STRSEQ_DIR}/02_Scripts"
+STRSEQ_DIR='/path/to/strseq'
+SCRIPT_DIR="${STRSEQ_DIR}/Scripts"
+PIPES_DIR="${STRSEQ_DIR}/Scripts/bpipes"
 
 # Function to print help
 print_usage()
@@ -90,5 +91,5 @@ echo "Running STR genotyping with file set: $fset"
 # Set configuration variables; Run STR genotyping 
 . ${SCRIPT_DIR}/bpipe_config.sh -t 12 -m 24 -l str_genotype -v $bpipe_ver
 
-${BPIPE_EXE} run -n $MAX_THREADS -rf "${LOG_REPORT}.html" -p pool="$pool" -p rlen="$rdlen" \
-                    -p snvs="$snvs" -p clean="$clean" ${SCRIPT_DIR}/bpipes/msi_str_genotyping.pipe ${fset}
+MAX_JAVA_MEM=2g ${BPIPE_EXE} run -n $MAX_THREADS -rf "${LOG_REPORT}.html" -p pool="$pool" -p rlen="$rdlen" \
+                    -p snvs="$snvs" -p clean="$clean" ${PIPES_DIR}/msi_str_genotyping.pipe ${fset}
