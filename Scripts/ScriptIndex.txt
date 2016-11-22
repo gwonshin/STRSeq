@@ -1,0 +1,21 @@
+Shell scripts:
+--------------
+strseq_genotype.sh	Run all processing to determine major/minor STR-SNV haplotypes	
+bpipe_str_genotype.sh	Alternate version of strseq_genotype.sh for use if bpipe is installed
+mixture_minor_haplotype.sh	Run the processing to determine whether minor component haplotypes exist in mixture
+
+
+Python scripts used for genotyping:
+-----------------------------------
+str_flank_alleles.py	Filter and reformat FreeBayes variant calls (remove indels)
+str_lengths_R1ref.py	Read .sam file, check for expected STR motifs per probe, and count associated reads
+str_ctlen_genotype.py	Summarize STR genotypes/alleles into final output format
+pstr_extract_R2snv.py	Extract base calls from variant positions in R2, outside of STR region
+pstr_merge_str_snv.py	Merge SNV calls from R2, with STR genotypes from R1
+pstr_genotyping.py	Count reads for all STR-SNV combinations found
+pstr_haplotype_cts.py	Summarize major/minor haplotypes per STR and calculate read ct% per haplotype
+msi_str.py	Common methods
+
+Python scripts for mixture haplotypes:
+--------------------------------------
+pstr_minor_haplotypes.py	Used for determining whether haplotypes from minor component of mixture, are present

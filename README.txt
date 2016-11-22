@@ -8,14 +8,14 @@ Scripts and resource files provided here to rerun any analysis performed for pub
 Basic processing can be run in one of two ways.
 1/ Run strseq_genotyping.sh with the following parameters:
    -b <R1 bam file>  (Bam file must be indexed, and R2 bam file with same name (except for R2 vs R1) also in same dir and indexed)
-   -p <pool>         (Use OS0037 for assay1 and OS0035 for assay2)
+   -p <pool>         (Use OS0037 for assay1; OS0035 for assay2 or OS0046 for assay 1+2)
    -r <rdlength>     (Alignment read length: 101 if read length is 101, otherwise use 150 which is default)
    -k <flanksize>    (Size of 5' and 3' STR flanking region, max 15.  Use 8 if read length is 101, otherwise 15)
    -v <alt|all>      (Haplotype only Ref/Alt bases at SNV positions (alt), or all bases at SNV positions (all))
   
 2/ Run bpipe_str_genotyping.sh (requires installation of bpipe - see below), with the following parameters:
    -f <bam file set, eg *.bam>  (Bam files must be indexed and exist in R1/R2 pairs)
-   -p <pool>         (Use OS0037 for assay1 and OS0035 for assay2)
+   -p <pool>         (Use OS0037 for assay1; OS0035 for assay2 or OS0046 for assay 1+2)
    -r <rdlength>     (Alignment read length: 101 if read length is 101, otherwise use 150 which is default)
    -k <flanksize>    (Size of 5' and 3' STR flanking region, max 15.  Use 8 if read length is 101, otherwise 15)
    -v <alt|all>      (Haplotype only Ref/Alt bases at SNV positions (alt), or all bases at SNV positions (all))
