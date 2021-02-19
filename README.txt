@@ -1,6 +1,6 @@
 STR-Seq: a massively parallel microsatellite sequencing and genotyping technology
 
-Technology described in publication xyz [include link]
+Technology described in publication https://www.nature.com/articles/ncomms14291
 Alignment files are accessible at NCBI Short Read Archive(SRA) with id: SRP071335
 
 Scripts and resource files provided here to rerun any analysis performed for publication
